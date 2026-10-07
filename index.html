@@ -235,15 +235,21 @@ const sp=(k,c="spr")=>`<img class="${c}" src="${IMG[k][0]}" alt="">`,hd=(k,c="hd
 	function startPicks(){const ks=sh(Object.keys(A));mpTeam=[null,null];NET.send({m:'pick',o:ks.slice(3,6)});init(ks.slice(0,3))}
 	function again(){if(!MPon)return init();if(!NET.g)startPicks()}
 	function pickGo(){if(!MPon)return start(pk);const g=$('pgo');g.disabled=true;g.textContent='Waiting for opponent…';document.querySelectorAll('.pcard').forEach(e=>e.disabled=true);if(NET.g)NET.send({a:'pick',k:pk});else{mpTeam[0]=pk;chk()}}
-	function hostMatch(){const st=$('mst');if(typeof Peer==='undefined'){st.textContent='Online play needs internet access to load PeerJS.';return}
-	const code=Array.from({length:4},()=>'ABCDEFGHJKMNPQRSTUVWXYZ'[Math.floor(Math.random()*23)]).join(''),pr=new Peer('pitchduel-'+code.toLowerCase());NET.peer=pr;
+	const PEER_OPTS={debug:1,config:{iceServers:[
+{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}
+/* ADD A TURN SERVER HERE so players on strict networks/mobile data can connect, e.g.
+,{urls:'turn:YOUR_TURN_HOST:443?transport=tcp',username:'USER',credential:'PASS'} */
+],iceCandidatePoolSize:4}};
+function hostMatch(){const st=$('mst');if(typeof Peer==='undefined'){st.textContent='Online play needs internet access to load PeerJS.';return}
+	const code=Array.from({length:4},()=>'ABCDEFGHJKMNPQRSTUVWXYZ'[Math.floor(Math.random()*23)]).join(''),pr=new Peer('pitchduel-'+code.toLowerCase(),PEER_OPTS);NET.peer=pr;pr.on('disconnected',()=>{if(!pr.destroyed)pr.reconnect()});
 	pr.on('open',()=>{const link=location.href.split('#')[0]+'#'+code;st.innerHTML=`Room code <b style="font-size:30px;letter-spacing:.25em">${code}</b><br>Or share this link:<input readonly value="${link}" onclick="this.select()"><br>Waiting for opponent…`});
 	pr.on('connection',c=>{if(NET.conn)return c.close();NET.conn=c;c.on('open',()=>{MPon=true;startPicks()});c.on('data',onMsg);c.on('close',bye)});
-	pr.on('error',e=>{st.textContent=e.type=='unavailable-id'?'Code clash, tap Create again.':'Connection error: '+e.type})}
+	pr.on('error',e=>{st.textContent=e.type=='unavailable-id'?'Code clash, tap Create again.':e.type=='network'||e.type=='server-error'||e.type=='socket-error'?'Can\'t reach the matchmaking server. Try again in a moment.':'Connection error: '+e.type})}
 	function joinMatch(){const st=$('mst'),code=($('code').value||'').trim().toLowerCase();if(code.length<4){st.textContent='Enter the 4-letter room code.';return}if(typeof Peer==='undefined'){st.textContent='Online play needs internet access to load PeerJS.';return}
-	st.textContent='Connecting…';const pr=new Peer();NET.peer=pr;NET.g=1;VW=1;const fail=t=>{NET.g=0;VW=0;st.textContent=t};
+	st.textContent='Connecting…';const pr=new Peer(undefined,PEER_OPTS);NET.peer=pr;NET.g=1;VW=1;const fail=t=>{NET.g=0;VW=0;st.textContent=t};
 	pr.on('open',()=>{const c=pr.connect('pitchduel-'+code,{reliable:true});NET.conn=c;c.on('open',()=>{MPon=true;st.textContent='Connected! Waiting for the host…'});c.on('data',onMsg);c.on('close',bye);setTimeout(()=>{if(!c.open)fail("Couldn't connect. Check the code, or try another network.")},12000)});
 	pr.on('error',e=>fail('Could not connect ('+e.type+'). Check the code.'))}
+	addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h.length==4&&!MPon&&$('menu').style.display!=='none'){$('code').value=h;joinMatch()}});
 	function menu(){$('game').style.display='none';$('pick').style.display='none';$('menu').style.display='';const h=location.hash.slice(1);if(h.length==4){$('code').value=h;joinMatch()}}
 	function annHTML(o){if(o.t=='fx')return `<div class="af"><span>${o.e}</span><span>${nm(o.txt)}</span></div>`;
 	const y=o.who==VW,cl=y?'':' cpu',st=`--fy:${y?260:-260}px`;
